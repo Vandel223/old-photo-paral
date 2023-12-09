@@ -107,43 +107,29 @@ gdImagePtr read_jpeg_file(char * file_name);
 int write_jpeg_file(gdImagePtr write_img, char * file_name);
 
 /******************************************************************************
- * readFiles()
+ * read_heif_file()
  *
- * Arguments: dir - name of directory to look for image-list.txt and read it
- * Returns: (char **) -    array of filenames
- *          int nn_files - number of files
- * Side-Effects: allocs an array of strings
+ * Arguments: file_name - name of file with data for HEIF image
+ * Returns: img - the image read from file or NULL if failure to read
+ * Side-Effects: none
  *
- * Description: Reads all picture names names in image-list.txt in the given
- * 				directory
+ * Description: reads a HEIF image from a file
  *
  *****************************************************************************/
-
-char **readFiles(char *dir, int *nn_files);
+gdImagePtr read_heif_file(char * file_name);
 
 /******************************************************************************
- * destroyFiles()
- * 
- * Arguments:	files - array of filenames
- * Returns: 	(void)
- * 
- * Description: function o free the array of filenames
- * 
- ******************************************************************************/
-
-void destroyFiles(char **files, int nn_files);
-
-/*****************************************************************************
- * isFileExists()
- * 
- * Arguments:	path - path to file
- * Returns: 	(int)	1 if file exists at given path otherwise returns 0.
- * 
- * Description: function to check whether a file exists or not using
- * 				fopen() function.
+ * write_heif_file()
+ *
+ * Arguments: img - pointer to image to be written
+ *            file_name - name of file where to save HEIF image
+ * Returns: (bool) 1 in case of success, 0 in case of failure to write
+ * Side-Effects: none
+ *
+ * Description: writes a HEIF image to a file
+ *
  *****************************************************************************/
-
-int isFileExists(const char *path);
+int write_heif_file(gdImagePtr write_img, char * file_name);
 
 /******************************************************************************
  * create_directory()
@@ -158,5 +144,52 @@ int isFileExists(const char *path);
  *****************************************************************************/
 int create_directory(char * dir_name);
 
+/******************************************************************************
+ * readFiles()
+ *
+ * Arguments: dir - name of directory to look for image-list.txt and read it
+ * Returns: (char **) -         array of filenames
+ *          int nn_files -      number of files
+ *          int total_size -    total size of files in KBytes
+ * Side-Effects: allocs an array of strings
+ *
+ * Description: Reads all picture names names in image-list.txt in the given
+ * 				directory
+ *
+ *****************************************************************************/
+char **readFiles(char *dir, int *nn_files);
+
+/******************************************************************************
+ * destroyFiles()
+ * 
+ * Arguments:	files - array of filenames
+ * Returns: 	(void)
+ * 
+ * Description: function o free the array of filenames
+ * 
+ ******************************************************************************/
+void destroyFiles(char **files, int nn_files);
+
+/*****************************************************************************
+ * isFileExists()
+ * 
+ * Arguments:	path - path to file
+ * Returns: 	(int)	1 if file exists at given path otherwise returns 0.
+ * 
+ * Description: function to check whether a file exists or not using
+ * 				fopen() function.
+ *****************************************************************************/
+int isFileExists(const char *filename);
+
+/******************************************************************************
+ * isFileExists()
+ * 
+ * Arguments:	path - path to directory
+ * Returns: 	(int)	1 if directory exists at given path otherwise returns 0.
+ * 
+ * Description: function to check whether a dir exists or not using opendir()
+ * 
+ ******************************************************************************/
+int isDirExists(const char *dirname);
 
 struct timespec diff_timespec(const struct timespec *time1, const struct timespec *time0);

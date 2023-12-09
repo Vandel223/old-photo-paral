@@ -1,11 +1,17 @@
 #include "image-lib.h"
 #include <sys/stat.h>
 #include <dirent.h>
+#include <errno.h>
 #include <assert.h>
 #include <time.h>
 #include <string.h>
 #include <stdlib.h>
-#include <sys/stat.h>
+
+/* the image-list file path */
+#define IMAGE_LIST "/image-list.txt"
+/* the directories wher output files will be placed */
+#define OLD_IMAGE_DIR "/old_photo_PAR_A"
+
 /******************************************************************************
  * texture_image()
  *
@@ -214,7 +220,7 @@ gdImagePtr read_jpeg_file(char * file_name){
  * write_jpeg_file()
  *
  * Arguments: img - pointer to image to be written
- *            file_name - name of file where to save PNG image
+ *            file_name - name of file where to save JPEG image
  * Returns: (bool) 1 in case of success, 0 in case of failure to write
  * Side-Effects: none
  *
@@ -234,6 +240,58 @@ int write_jpeg_file(gdImagePtr write_img, char * file_name){
 	return 1;
 }
 
+/******************************************************************************
+ * read_heif_file()
+ *
+ * Arguments: file_name - name of file with data for HEIF image
+ * Returns: img - the image read from file or NULL if failure to read
+ * Side-Effects: none
+ *
+ * Description: reads a HEIF image from a file
+ *
+ *****************************************************************************/
+gdImagePtr read_heif_file(char * file_name){
+
+	FILE * fp;
+	gdImagePtr read_img;
+
+	fp = fopen(file_name, "rb");
+   	if (!fp) {
+        fprintf(stderr, "Can't read image %s\n", file_name);
+        return NULL;
+    }
+    read_img = gdImageCreateFromHeif(fp);
+    fclose(fp);
+  	if (read_img == NULL) {
+    	return NULL;
+    }
+
+	return read_img;
+}
+
+/******************************************************************************
+ * write_heif_file()
+ *
+ * Arguments: img - pointer to image to be written
+ *            file_name - name of file where to save HEIF image
+ * Returns: (bool) 1 in case of success, 0 in case of failure to write
+ * Side-Effects: none
+ *
+ * Description: writes a HEIF image to a file
+ *
+ *****************************************************************************/
+int write_heif_file(gdImagePtr write_img, char * file_name){
+	FILE * fp;
+
+	fp = fopen(file_name, "wb");
+	if (fp == NULL) {
+		return 0;
+	}
+	gdImageHeif(write_img, fp);
+	fclose(fp);
+
+	return 1;
+}
 
 /******************************************************************************
  * create_directory()
@@ -264,49 +322,91 @@ int create_directory(char * dir_name){
  * readFiles()
  *
  * Arguments: dir - name of directory to look for image-list.txt and read it
- * Returns: (char **)	the names of the pictures in image-list.txt as an
- * 						array of strings
+ * Returns: (char **) -         array of filenames in image-list.txt
+ *          int nn_files -      number of files
  * Side-Effects: allocs an array of strings
  *
  * Description: Reads all picture names names in image-list.txt in the given
  * 				directory
  *
  *****************************************************************************/
-
 char **readFiles(char *dir, int *nn_files) {
 
-	char buffer[128];						/* allocate buffer*/
+	char buffer[256];						/* allocate buffer*/
+	char outFileName[256];					/* another buffer to check out file existence */
 	FILE *listFp;
 	char **files;
 
 	/* get the image-list path */
-	sprintf(buffer, "%s%s", dir, "/image-list.txt");
+	sprintf(buffer, "%s%s", dir, IMAGE_LIST);
 	char *img = strrchr(buffer, '/') + 1;
 	/* open it */
 	listFp = fopen(buffer, "rb");
 	*nn_files = 0;
 
-	/* count the number of files*/
-	while ( fscanf(listFp, "%s", img) != EOF ) {
+	int imgLen = 256 - strlen(dir) - strlen(IMAGE_LIST);
 
-		/* check if file exists */
-		if (isFileExists(buffer))
+	/* count the number of files*/
+	while ( fgets(img, imgLen, listFp) != NULL ) {
+
+		/* clean fgets() \n*/
+		img[strcspn(img, "\n")] = '\0';
+
+		/* check out file existence */
+		sprintf(outFileName, "%s%s%s", dir,  OLD_IMAGE_DIR, img - 1);
+		if (isFileExists(outFileName)) {
+			fprintf(stdout, "Found file:\t%s\n", outFileName);
+			continue;
+		}
+
+		/* check if file exists*/
+		if (!isFileExists(buffer)) {
+			fprintf(stdout, "Not able to locate - %s\n", buffer);
+			continue;
+		}
+
+		/* check if file exists and is JPEG format */
+		if ((strcmp(strrchr(img, '.'), ".jpeg") && strcmp(strrchr(img, '.'), ".jpg"))) {
+			fprintf(stdout, "Only supports JPEG format - %s\n", buffer);
+			continue;
+		}
+		
 		(*nn_files)++;
 	}
 
+	/* create array of filenames */
 	files = (char **) malloc(*nn_files * sizeof(char *));
+
 	fseek(listFp, 0, SEEK_SET);
 	int i = 0;
 
-	while ( fscanf(listFp, "%s", img) != EOF ) {
+	while ( fgets(img, imgLen, listFp) != NULL ) {
 
-		if (isFileExists(buffer)) {
-    		files[i] = (char *) malloc((strlen(buffer) + 1) * sizeof(char));
-			sprintf(files[i++], "%s", buffer);
+		/* clean fget() \n */
+		img[strcspn(img, "\n")] = '\0';
+
+		/* check out file existence */
+		sprintf(outFileName, "%s%s%s", dir,  OLD_IMAGE_DIR, img - 1);
+		if (isFileExists(outFileName)) {
+			continue;
 		}
+
+		/* check if file exists*/
+		if (!isFileExists(buffer)) {
+			continue;
+		}
+
+		/* check if file exists and is JPEG format */
+		if ((strcmp(strrchr(img, '.'), ".jpeg") && strcmp(strrchr(img, '.'), ".jpg"))) {
+			continue;
+		}
+
+		files[i] = (char *) malloc((strlen(buffer) + 1) * sizeof(char));
+		sprintf(files[i++], "%s", buffer);
 		
 	}
 
+	fclose(listFp);
 	return files;
 
 }
@@ -320,7 +420,6 @@ char **readFiles(char *dir, int *nn_files) {
  * Description: function o free the array of filenames
  * 
  ******************************************************************************/
-
 void destroyFiles(char **files, int nn_files) {
 	for (int i = 0; i < nn_files; i++) {
 		free(files[i]);
@@ -338,16 +437,33 @@ void destroyFiles(char **files, int nn_files) {
  * 				stat() function.
  * 
  ******************************************************************************/
+int isFileExists(const char *filename) {
 
-int isFileExists(const char *path)
-{
-	FILE *fp = fopen(path, "rb");
+	struct stat buffer;   
+	return (stat (filename, &buffer) == 0);
 
-    /* check for file existence */
-    if (fp)
-        return 1;
+}
 
-    return 0;
+/******************************************************************************
+ * isFileExists()
+ * 
+ * Arguments:	path - path to directory
+ * Returns: 	(int)	1 if directory exists at given path otherwise returns 0.
+ * 
+ * Description: function to check whether a dir exists or not using opendir()
+ * 
+ ******************************************************************************/
+int isDirExists(const char *dirname) {
+
+	DIR * aux = opendir(dirname);
+
+	if (ENOENT == errno) {
+		return 0;
+	}
+	closedir(aux);
+
+	return 1;
+
 }
 
 /******************************************************************************
